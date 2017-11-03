@@ -1,0 +1,9 @@
+collatz-list-sys
+collatz-ivec-sys
+collatz-list-hw7
+collatz-ivec-hw7
+collatz-list-par
+collatz-ivec-par
+time.tmp
+outp.tmp
+*.o
