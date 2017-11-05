@@ -23,7 +23,11 @@ typedef struct mem_node {
 
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
-static mem_node* free_list;
+
+const size_t NUM_BINS = 10;
+const size_t BIN_SIZES[] = {8, 32, 64, 96, 128, 256, 512, 1024, 2048, 4096};
+static mem_node* bins[10];
+
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static
@@ -57,7 +61,7 @@ set_size(void* item, size_t size)
 
 // Initializes pages new memory of as a mem_node
 mem_node*
-mem_node_init(size_t pages)
+mem_node_init(size_t size)
 {
     stats.pages_mapped += pages;
     size_t size = pages * PAGE_SIZE;
@@ -67,21 +71,73 @@ mem_node_init(size_t pages)
     return n;
 }
 
-// "pops" a mem_node with size bytes available off of the free_list
+// Returns the bin number to store a elements of the passed size
+int
+get_bin_number(size_t size)
+{
+	for (int i = 0; i < NUM_BINS - 1; i++) {
+		if (size <= BIN_SIZES[i]) {
+			return i;
+		}
+	}
+
+	return NUM_BINS - 1;
+}
+
 mem_node*
-free_list_pop(size_t size)
+split_node(mem_node* node, size_t size)
+{
+	size_t second_node_size = node->size - size;
+	size_t next_bin = -1;
+
+	mem_node* return_node = node;
+	set_size(return_node, size);
+
+	for (int i = NUM_BINS; i >= 0; i--) {
+		if (BIN_SIZES[i] <= second_node_size) {
+			next_bin = i;
+		}
+	}
+
+	while (next_bin >= 0) {
+		size_t to_alloc_size = BIN_SIZES[next_bin];
+		second_node_size -= to_alloc_size;	
+		// split up the nodes, insert
+		// check the next bin based on second_node_size
+	}
+
+	return return_node;
+}
+
+// "pops" a mem_node with size bytes available off of the bins
+mem_node*
+bins_list_pop(size_t size)
 {
     pthread_mutex_lock(&mutex);
-    mem_node* prev = NULL;
-    mem_node* cur = free_list;
+	int min_bin_number = get_bin_number(size);
+	
+	if (bins[min_bin_number] != NULL) {
+		mem_node* node = bins[min_bin_number];
+		bins[min_bin_number] = node->next;
+		node->next = NULL;
+		pthread_mutex_unlock(&mutex);
+		return node;
+	} else {
+		int start_bin = min_bin_number + 1;
+		// TODO: mmap a new page if necessary
+		for (int i = start_bin; i < NUM_BINS; i++) {
+			if (bins[i] != NULL) {
+				split_node(bins[i], size);
+			}
+		}
+	}
 
     while (cur != NULL) {
         if (cur->size > size) {
             if (prev != NULL) {
                 prev->next = cur->next;
             } else {
-                // if prev is null, cur == free_list
-                free_list = cur->next;
+                bins[bin_number] = cur->next;
             }
 
             cur->next = NULL;
@@ -106,46 +162,51 @@ mem_node_merge(mem_node* left, mem_node* right)
 
 // Inserts into the free list, maintaining sorted order
 void
-free_list_insert(mem_node* node)
+bins_insert(mem_node* node)
 {
     pthread_mutex_lock(&mutex);
+	int bin_number = get_bin_number(node->size);
+	mem_node* list = bins[bin_number];
 
-    if (free_list == NULL) {
-        free_list = node;
+    if (list == NULL) {
+        bins[bin_number] = node;
         pthread_mutex_unlock(&mutex);
         return;
     }
 
     mem_node* insertion_start = NULL;
-    mem_node* insertion_end = free_list;
+    mem_node* insertion_end = list;
 
     while (insertion_end != NULL && node > insertion_end) {
-        if (insertion_start && (insertion_end - insertion_start) == 1) {
-            mem_node_merge(insertion_start, insertion_end);
-            insertion_end = insertion_start->next;
-        } else {
-            insertion_start = insertion_end;
-            insertion_end = insertion_end->next;
-        }
+        //if (insertion_start && (insertion_end - insertion_start) == 1) {
+        //    mem_node_merge(insertion_start, insertion_end);
+        //    insertion_end = insertion_start->next;
+        //} else {
+		insertion_start = insertion_end;
+		insertion_end = insertion_end->next;
+        //}
     }
 
     if (insertion_start != NULL) {
         insertion_start->next = node;
     }
+
     node->next = insertion_end;
     pthread_mutex_unlock(&mutex);
 }
 
 long
-free_list_length()
+bins_list_length()
 {
-    mem_node* cur = free_list;
     long len = 0;
 
-    while (cur != NULL) {
-        len++;
-        cur = cur->next;
-    }
+	for (int i = 0; i < NUM_BINS; i++) {
+		mem_node* cur = bins[i];
+		while (cur != NULL) {
+			len++;
+			cur = cur->next;
+		}
+	}
 
     return len;
 }
@@ -153,14 +214,14 @@ free_list_length()
 hm_stats*
 hgetstats()
 {
-    stats.free_length = free_list_length();
+    stats.free_length = bins_list_length();
     return &stats;
 }
 
 void
 hprintstats()
 {
-    stats.free_length = free_list_length();
+    stats.free_length = bins_list_length();
     fprintf(stderr, "\n== husky malloc stats ==\n");
     fprintf(stderr, "Mapped:   %ld\n", stats.pages_mapped);
     fprintf(stderr, "Unmapped: %ld\n", stats.pages_unmapped);
@@ -180,7 +241,7 @@ xmalloc(size_t size)
     size_t pages = div_up(size, PAGE_SIZE);
 
     if (pages == 1) {
-        to_alloc = free_list_pop(size);
+        to_alloc = bins_list_pop(size);
     } else {
         size = pages * PAGE_SIZE;
     }
@@ -196,7 +257,7 @@ xmalloc(size_t size)
     if (new_node_size > 0 && new_node_size > sizeof(mem_node)) {
         new_node = ((void*) to_alloc) + size;
         new_node->size = (size_t) new_node_size;
-        free_list_insert(new_node);
+        bins_insert(new_node);
     }
 
     void* item = ((void*) to_alloc) + sizeof(size_t);
@@ -219,7 +280,7 @@ xfree(void* item)
     } else {
         mem_node* new_node = (mem_node*) (item);
         new_node->size = size;
-        free_list_insert(new_node);
+        bins_insert(new_node);
     }
 }
 
