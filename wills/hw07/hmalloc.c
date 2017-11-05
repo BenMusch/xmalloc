@@ -148,6 +148,8 @@ insert_node(node* n) {
     coalesce(n);
 }
 
+
+
 void*
 hmalloc(size_t size)
 {
@@ -235,5 +237,18 @@ hfree(void* item)
 	insert_node(fnode);
 	full_coalesce();
     }
+
+}
+
+
+void*
+realloc(void* ptr, size_t size)
+{
+    void* new = hmalloc(size);
+    for (int ii = 0; ii < size; ++ii) {
+        new[ii] = ptr[ii];
+    }
+    hfree(ptr);
+    return new;
 
 }
