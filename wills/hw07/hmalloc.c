@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <stdio.h>
-#include "barrier.h"
+#include <pthread.h>
 #include "hmalloc.h"
 
 void free_node_init(void* page);
@@ -249,7 +249,7 @@ hfree(void* item)
 
 
 void*
-hrealloc(void* ptr, size_t size)
+realloc(void* ptr, size_t size)
 {
     void* new = hmalloc(size);
     for (int ii = 0; ii < size; ++ii) {
