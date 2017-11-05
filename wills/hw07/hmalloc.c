@@ -30,7 +30,7 @@ typedef struct header {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 node* fl = NULL;
-barrier* bb = NULL;
+pthread_mutex_t mutex = NULL;
 
 
 
@@ -116,6 +116,7 @@ coalesce(node* n)
 
 void
 insert_node(node* n) {
+    pthread_mutex_lock(&mutex);
     if (fl == NULL) {
         fl = n;
 	fl->next = NULL;
@@ -147,6 +148,7 @@ insert_node(node* n) {
         }
     }    
     coalesce(n);
+    pthread_mutex_unlock(&mutex);
 }
 
 
@@ -157,8 +159,8 @@ hmalloc(size_t size)
     stats.chunks_allocated += 1;
     size += sizeof(size_t);
 
-    if (bb == NULL) {
-	bb = make_barrier();
+    if (mutex == NULL) {
+	pthread_mutex_init(&mutex, 0);
     }    
 
     // TODO: Actually allocate memory with mmap and a free list.
