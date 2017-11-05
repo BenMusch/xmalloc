@@ -41,6 +41,18 @@ div_up(size_t xx, size_t yy)
     }
 }
 
+size_t
+get_size(void* item)
+{
+	return *(size_t*)(item - sizeof(size_t));
+}
+
+void
+set_size(void* item, size_t size)
+{
+	size_t* alloc_size = (size_t*) (item - sizeof(size_t));
+	*alloc_size = size;
+}
 
 // Initializes pages new memory of as a mem_node
 mem_node*
@@ -185,8 +197,7 @@ hmalloc(size_t size)
 	}
 
 	void* item = ((void*) to_alloc) + sizeof(size_t);
-	size_t* alloc_size = (size_t*) (to_alloc);
-	*alloc_size = size;
+	set_size(item, size);
 
 	return item;
 }
@@ -196,8 +207,8 @@ hfree(void* item)
 {
     stats.chunks_freed += 1;
 
+	size_t size = get_size(item);
 	item = item - sizeof(size_t);
-	size_t size = *(size_t*)(item);
 
 	if (size >= PAGE_SIZE) {
 		munmap(item, size);
@@ -209,3 +220,15 @@ hfree(void* item)
 	}
 }
 
+void*
+hrealloc(void* ptr, size_t size)
+{
+    void* new = hmalloc(size);
+
+    for (int ii = 0; ii < get_size(ptr); ++ii) {
+        new[ii] = ptr[ii];
+    }
+
+    hfree(ptr);
+    return new;
+}
