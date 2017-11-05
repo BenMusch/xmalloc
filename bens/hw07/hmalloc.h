@@ -17,6 +17,7 @@ typedef struct hm_stats {
 hm_stats* hgetstats();
 void hprintstats();
 
+void* hrealloc(void* ptr, size_t size);
 void* hmalloc(size_t size);
 void hfree(void* item);
 

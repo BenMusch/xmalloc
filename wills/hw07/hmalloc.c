@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <pthread.h>
+
 #include "hmalloc.h"
 
 void free_node_init(void* page);
@@ -30,8 +31,14 @@ typedef struct header {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 node* fl = NULL;
-pthread_mutex_t mutex = NULL;
+pthread_mutex_t* mutex = NULL;
 
+
+size_t
+get_size(void* ptr)
+{
+	return *(*size_t)
+}
 
 
 long
@@ -116,7 +123,7 @@ coalesce(node* n)
 
 void
 insert_node(node* n) {
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(mutex);
     if (fl == NULL) {
         fl = n;
 	fl->next = NULL;
@@ -148,7 +155,7 @@ insert_node(node* n) {
         }
     }    
     coalesce(n);
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(mutex);
 }
 
 
@@ -160,7 +167,7 @@ hmalloc(size_t size)
     size += sizeof(size_t);
 
     if (mutex == NULL) {
-	pthread_mutex_init(&mutex, 0);
+	pthread_mutex_init(mutex, 0);
     }    
 
     // TODO: Actually allocate memory with mmap and a free list.
@@ -249,12 +256,14 @@ hfree(void* item)
 
 
 void*
-realloc(void* ptr, size_t size)
+hrealloc(void* ptr, size_t size)
 {
     void* new = hmalloc(size);
+
     for (int ii = 0; ii < size; ++ii) {
         new[ii] = ptr[ii];
     }
+
     hfree(ptr);
     return new;
 
