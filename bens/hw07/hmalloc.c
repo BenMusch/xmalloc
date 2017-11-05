@@ -2,7 +2,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <stdio.h>
-
+#include <pthread.h>
 #include "hmalloc.h"
 
 /*
@@ -23,6 +23,7 @@ typedef struct mem_node {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 static mem_node* free_list;
+pthread_mutex_t* mutex = NULL;
 
 static
 size_t
@@ -57,6 +58,7 @@ mem_node_init(size_t pages)
 mem_node*
 free_list_pop(size_t size)
 {
+	pthread_mutex_lock(mutex);
 	mem_node* prev = NULL;
 	mem_node* cur = free_list;
 
@@ -70,12 +72,14 @@ free_list_pop(size_t size)
 			}
 
 			cur->next = NULL;
+			pthread_mutex_unlock(mutex);
 			return cur;
 		}
 
 		prev = cur;
 		cur = cur->next;
 	}
+	pthread_mutex_unlock(mutex);
 	return NULL;
 }
 
@@ -91,6 +95,7 @@ mem_node_merge(mem_node* left, mem_node* right)
 void
 free_list_insert(mem_node* node)
 {
+	pthread_mutex_lock(mutex);
 	if (free_list == NULL) {
 		free_list = node;
 		return;
@@ -113,6 +118,7 @@ free_list_insert(mem_node* node)
 		insertion_start->next = node;
 	}
 	node->next = insertion_end;
+	pthread_mutex_unlock(mutex);
 }
 
 long
