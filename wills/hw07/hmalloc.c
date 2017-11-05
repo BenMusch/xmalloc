@@ -249,7 +249,7 @@ hfree(void* item)
 
 
 void*
-realloc(void* ptr, size_t size)
+hrealloc(void* ptr, size_t size)
 {
     void* new = hmalloc(size);
     for (int ii = 0; ii < size; ++ii) {

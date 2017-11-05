@@ -16,6 +16,7 @@ hm_stats* hgetstats();
 void hprintstats();
 
 void* hmalloc(size_t size);
+void* hrealloc(void* ptr, size_t size);
 void hfree(void* item);
 
 #endif

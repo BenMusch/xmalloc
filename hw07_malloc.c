@@ -27,6 +27,5 @@ void*
 xrealloc(void* prev, size_t bytes)
 {
     return hrealloc(prev, bytes);
-    
 }
 
