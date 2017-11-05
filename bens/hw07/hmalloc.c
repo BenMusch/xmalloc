@@ -24,7 +24,7 @@ typedef struct mem_node {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 static mem_node* free_list;
-pthread_mutex_t* mutex = NULL;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static
 size_t
@@ -61,7 +61,7 @@ mem_node_init(size_t pages)
 {
 	stats.pages_mapped += pages;
 	size_t size = pages * PAGE_SIZE;
-	mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+	mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 	n->size = size - sizeof(mem_node);
 	n->next = NULL;
 	return n;
@@ -71,7 +71,9 @@ mem_node_init(size_t pages)
 mem_node*
 free_list_pop(size_t size)
 {
-	pthread_mutex_lock(mutex);
+	printf("About to lock!");
+	pthread_mutex_lock(&mutex);
+	printf("After lock");
 	mem_node* prev = NULL;
 	mem_node* cur = free_list;
 
@@ -85,14 +87,18 @@ free_list_pop(size_t size)
 			}
 
 			cur->next = NULL;
-			pthread_mutex_unlock(mutex);
+			printf("About to unlock! [found]");
+			pthread_mutex_unlock(&mutex);
+			printf("unlocked! [found]");
 			return cur;
 		}
 
 		prev = cur;
 		cur = cur->next;
 	}
-	pthread_mutex_unlock(mutex);
+	printf("About to unlock!");
+	pthread_mutex_unlock(&mutex);
+	printf("unlocked!");
 	return NULL;
 }
 
@@ -108,7 +114,9 @@ mem_node_merge(mem_node* left, mem_node* right)
 void
 free_list_insert(mem_node* node)
 {
-	pthread_mutex_lock(mutex);
+	printf("About to lock [insert]");
+	pthread_mutex_lock(&mutex);
+	printf("locked [insert]");
 	if (free_list == NULL) {
 		free_list = node;
 		return;
@@ -131,7 +139,9 @@ free_list_insert(mem_node* node)
 		insertion_start->next = node;
 	}
 	node->next = insertion_end;
-	pthread_mutex_unlock(mutex);
+	printf("About to unlock [insert]");
+	pthread_mutex_unlock(&mutex);
+	printf("unlocked [insert]");
 }
 
 long

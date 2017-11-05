@@ -115,6 +115,7 @@ worker(void* _arg)
 int
 main(int argc, char* argv[])
 {
+	printf("CALLED");
     pthread_t threads[THREADS];
     int rv;
 
@@ -126,7 +127,9 @@ main(int argc, char* argv[])
 
     data_top  = atol(argv[1]);
 
+	printf("about to xmalloc");
     tasks = xmalloc(data_top * sizeof(num_task*));
+	printf("xmalloced");
     for (int ii = 0; ii < data_top; ++ii) {
         tasks[ii] = xmalloc(sizeof(num_task));
         tasks[ii]->vals  = cons(ii, 0);
