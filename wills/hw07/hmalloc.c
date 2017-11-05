@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <stdio.h>
-
+#include "barrier.h"
 #include "hmalloc.h"
 
 void free_node_init(void* page);
@@ -30,6 +30,7 @@ typedef struct header {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 node* fl = NULL;
+barrier* bb = NULL;
 
 
 
@@ -155,7 +156,11 @@ hmalloc(size_t size)
 {
     stats.chunks_allocated += 1;
     size += sizeof(size_t);
-    
+
+    if (bb == NULL) {
+	bb = make_barrier();
+    }    
+
     // TODO: Actually allocate memory with mmap and a free list.
      
     
