@@ -87,7 +87,7 @@ get_bin_number(size_t size)
 size_t
 get_rounded_size(size_t size)
 {
-	for (int i = 9; i >= 0; i--) {
+	for (int i = 0; i < NUM_BINS; i++) {
 		if (size <= BIN_SIZES[i]) {
 			return BIN_SIZES[i];
 		}
@@ -110,7 +110,7 @@ split_node(mem_node* node, size_t size)
 		node = (mem_node*) (((void*) node) + size);
 		node->size = leftover_size;
 
-		while (next_bin >= 0) {
+		while (next_bin > 0) {
 			size_t to_insert_size = BIN_SIZES[next_bin];
 
 			if (leftover_size < to_insert_size) {
@@ -140,7 +140,7 @@ bins_list_pop(size_t size)
 	int rounded_size = get_rounded_size(size);
 	int bin_number;
 	
-	for (int i = 0; i < NUM_BINS; i--) {
+	for (int i = 0; i < NUM_BINS; i++) {
 		if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
 			return split_node(bins[i], rounded_size);	
 		}
