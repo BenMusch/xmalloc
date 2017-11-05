@@ -61,7 +61,7 @@ set_size(void* item, size_t size)
 
 // Initializes pages new memory of as a mem_node
 mem_node*
-mem_node_init(size_t size)
+mem_node_init(size_t pages)
 {
     stats.pages_mapped += pages;
     size_t size = pages * PAGE_SIZE;
@@ -84,28 +84,52 @@ get_bin_number(size_t size)
 	return NUM_BINS - 1;
 }
 
-mem_node*
-split_node(mem_node* node, size_t size)
+size_t
+get_rounded_size(size_t size)
 {
-	size_t second_node_size = node->size - size;
-	size_t next_bin = -1;
-
-	mem_node* return_node = node;
-	set_size(return_node, size);
-
-	for (int i = NUM_BINS; i >= 0; i--) {
-		if (BIN_SIZES[i] <= second_node_size) {
-			next_bin = i;
+	for (int i = 9; i >= 0; i--) {
+		if (size <= BIN_SIZES[i]) {
+			return BIN_SIZES[i];
 		}
 	}
 
-	while (next_bin >= 0) {
-		size_t to_alloc_size = BIN_SIZES[next_bin];
-		second_node_size -= to_alloc_size;	
-		// split up the nodes, insert
-		// check the next bin based on second_node_size
+	return -1;
+}
+
+mem_node*
+split_node(mem_node* node, size_t size)
+{
+    pthread_mutex_lock(&mutex);
+	size_t leftover_size = node->size - size;
+	size_t next_bin = 9;
+
+	mem_node* return_node = node;
+	return_node->size = size;
+
+	if (leftover_size > BIN_SIZES[0]) {
+		node = (mem_node*) (((void*) node) + size);
+		node->size = leftover_size;
+
+		while (next_bin >= 0) {
+			size_t to_insert_size = BIN_SIZES[next_bin];
+
+			if (leftover_size < to_insert_size) {
+				next_bin -= 1;
+				continue;
+			}
+
+			mem_node* to_insert = node;
+			to_insert->size = to_insert_size;
+			to_insert->next = bins[next_bin];
+			bins[next_bin] = to_insert;
+			leftover_size -= to_insert_size;
+			
+			node = (mem_node*) (((void*) node) + to_insert_size);
+			node->size = leftover_size;
+		}
 	}
 
+	pthread_mutex_unlock(&mutex);
 	return return_node;
 }
 
@@ -113,42 +137,15 @@ split_node(mem_node* node, size_t size)
 mem_node*
 bins_list_pop(size_t size)
 {
-    pthread_mutex_lock(&mutex);
-	int min_bin_number = get_bin_number(size);
+	int rounded_size = get_rounded_size(size);
+	int bin_number;
 	
-	if (bins[min_bin_number] != NULL) {
-		mem_node* node = bins[min_bin_number];
-		bins[min_bin_number] = node->next;
-		node->next = NULL;
-		pthread_mutex_unlock(&mutex);
-		return node;
-	} else {
-		int start_bin = min_bin_number + 1;
-		// TODO: mmap a new page if necessary
-		for (int i = start_bin; i < NUM_BINS; i++) {
-			if (bins[i] != NULL) {
-				split_node(bins[i], size);
-			}
+	for (int i = 0; i < NUM_BINS; i--) {
+		if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
+			return split_node(bins[i], rounded_size);	
 		}
 	}
-
-    while (cur != NULL) {
-        if (cur->size > size) {
-            if (prev != NULL) {
-                prev->next = cur->next;
-            } else {
-                bins[bin_number] = cur->next;
-            }
-
-            cur->next = NULL;
-            pthread_mutex_unlock(&mutex);
-            return cur;
-        }
-
-        prev = cur;
-        cur = cur->next;
-    }
-    pthread_mutex_unlock(&mutex);
+	
     return NULL;
 }
 
