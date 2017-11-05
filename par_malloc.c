@@ -162,33 +162,11 @@ void
 bins_insert(mem_node* node)
 {
     pthread_mutex_lock(&mutex);
-	int bin_number = get_bin_number(node->size);
+	int bin_number = get_bin_number(get_rounded_size(node->size));
 	mem_node* list = bins[bin_number];
 
-    if (list == NULL) {
-        bins[bin_number] = node;
-        pthread_mutex_unlock(&mutex);
-        return;
-    }
-
-    mem_node* insertion_start = NULL;
-    mem_node* insertion_end = list;
-
-    while (insertion_end != NULL && node > insertion_end) {
-        //if (insertion_start && (insertion_end - insertion_start) == 1) {
-        //    mem_node_merge(insertion_start, insertion_end);
-        //    insertion_end = insertion_start->next;
-        //} else {
-		insertion_start = insertion_end;
-		insertion_end = insertion_end->next;
-        //}
-    }
-
-    if (insertion_start != NULL) {
-        insertion_start->next = node;
-    }
-
-    node->next = insertion_end;
+	node->next = bins[bin_number];
+	bins[bin_number] = node;
     pthread_mutex_unlock(&mutex);
 }
 

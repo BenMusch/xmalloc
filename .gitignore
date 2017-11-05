@@ -7,3 +7,4 @@ collatz-ivec-par
 time.tmp
 outp.tmp
 *.o
+*.swp
