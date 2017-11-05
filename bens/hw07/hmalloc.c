@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <string.h>
 #include "hmalloc.h"
 
 /*
@@ -225,10 +226,8 @@ hrealloc(void* ptr, size_t size)
 {
     void* new = hmalloc(size);
 
-    for (int ii = 0; ii < get_size(ptr); ++ii) {
-        new[ii] = ptr[ii];
-    }
-
+	memcpy(new, ptr, get_size(ptr));
     hfree(ptr);
+
     return new;
 }
