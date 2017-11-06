@@ -110,7 +110,7 @@ split_node(mem_node* node, size_t size)
 		node = (mem_node*) (((void*) node) + size);
 		node->size = leftover_size;
 
-		while (next_bin > 0) {
+		while (next_bin >= 0) {
 			size_t to_insert_size = BIN_SIZES[next_bin];
 
 			if (leftover_size < to_insert_size) {
@@ -226,14 +226,6 @@ xmalloc(size_t size)
     }
 
     int new_node_size = to_alloc->size - size;
-
-    // I know this looks redundant, but for some reason the > 0
-    // conditional prevents a segfault on one of my test machines
-    if (new_node_size > 0 && new_node_size > sizeof(mem_node)) {
-        new_node = ((void*) to_alloc) + size;
-        new_node->size = (size_t) new_node_size;
-        bins_insert(new_node);
-    }
 
     void* item = ((void*) to_alloc) + sizeof(size_t);
     set_size(item, size);
