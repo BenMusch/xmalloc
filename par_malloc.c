@@ -21,6 +21,12 @@ typedef struct mem_node {
     struct mem_node* next;
 } mem_node;
 
+
+/**
+ * =======
+ * GLOBALS
+ * =======
+ */
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 
@@ -30,18 +36,21 @@ static mem_node* bins[10];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * =================
+ * UTILITY FUNCTIONS
+ * =================
+ */
+
 static
 size_t
 div_up(size_t xx, size_t yy)
 {
-    // This is useful to calculate # of pages
-    // for large allocations.
     size_t zz = xx / yy;
 
     if (zz * yy == xx) {
         return zz;
-    }
-    else {
+    } else {
         return zz + 1;
     }
 }
@@ -63,6 +72,16 @@ bins_list_length(int bin)
     return len;
 }
 
+void
+binstatus() {
+	printf("===========================================\n");
+	for (int i=0; i < NUM_BINS; i++) {
+		printf("%lu: %lu\n", BIN_SIZES[i], bins_list_length(i));
+	}
+	printf("===========================================\n");
+}
+
+
 size_t
 get_size(void* item)
 {
@@ -74,18 +93,6 @@ set_size(void* item, size_t size)
 {
     size_t* alloc_size = (size_t*) (item - sizeof(size_t));
     *alloc_size = size;
-}
-
-// Initializes pages new memory of as a mem_node
-mem_node*
-mem_node_init(size_t pages)
-{
-    stats.pages_mapped += pages;
-    size_t size = pages * PAGE_SIZE;
-    mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-    n->size = size - sizeof(mem_node);
-    n->next = NULL;
-    return n;
 }
 
 // Returns the bin number to store a elements of the passed size
@@ -114,12 +121,29 @@ get_rounded_size(size_t size)
 }
 
 void
-binstatus() {
-	printf("===========================================\n");
-	for (int i=0; i < NUM_BINS; i++) {
-		printf("%lu: %lu\n", BIN_SIZES[i], bins_list_length(i));
-	}
-	printf("===========================================\n");
+mem_node_merge(mem_node* left, mem_node* right)
+{
+    size_t size = left->size + right->size + sizeof(mem_node);
+    left->size = size;
+    left->next = right->next;
+}
+
+/**
+ * ================
+ * ALLOCATION LOGIC
+ * ================
+ */
+
+// Initializes pages new memory of as a mem_node
+mem_node*
+mem_node_init(size_t pages)
+{
+    stats.pages_mapped += pages;
+    size_t size = pages * PAGE_SIZE;
+    mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+    n->size = size - sizeof(mem_node);
+    n->next = NULL;
+    return n;
 }
 
 mem_node*
@@ -129,8 +153,6 @@ split_node(mem_node* node, size_t size)
 	binstatus();
 	size_t leftover_size = node->size - size;
 	size_t next_bin = 9;
-
-	//printf("NODE SIZE: %lu | REQUESTED SIZE: %lu | LEFTOVER SIZE: %lu\n", node->size, size, leftover_size);
 
 	mem_node* return_node = node;
 	return_node->size = size;
@@ -142,15 +164,10 @@ split_node(mem_node* node, size_t size)
 		while (next_bin >= 0) {
 			size_t to_insert_size = BIN_SIZES[next_bin];
 
-			//printf("CUR BIN: %lu | CUR LEFTOVER: %lu\n", to_insert_size, leftover_size);
-
 			if (leftover_size < to_insert_size) {
 				next_bin -= 1;
-				//printf("skipping\n");
 				continue;
 			}
-
-			//printf("inserting\n");
 
 			mem_node* to_insert = node;
 			to_insert->size = to_insert_size;
@@ -182,14 +199,6 @@ bins_list_pop(size_t size)
 	}
 	
     return NULL;
-}
-
-void
-mem_node_merge(mem_node* left, mem_node* right)
-{
-    size_t size = left->size + right->size + sizeof(mem_node);
-    left->size = size;
-    left->next = right->next;
 }
 
 // Inserts into the free list, maintaining sorted order
