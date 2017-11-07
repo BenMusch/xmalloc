@@ -6,16 +6,6 @@
 #include "bens/hw07/hmalloc.h"
 #include "xmalloc.h"
 
-/*
-  typedef struct hm_stats {
-  long pages_mapped;
-  long pages_unmapped;
-  long chunks_allocated;
-  long chunks_freed;
-  long free_length;
-  } hm_stats;
-*/
-
 typedef struct mem_node {
     size_t size;
     struct mem_node* next;
@@ -28,10 +18,9 @@ typedef struct mem_node {
  * =======
  */
 const size_t PAGE_SIZE = 4096;
-static hm_stats stats; // This initializes the stats to 0.
 
 const size_t NUM_BINS = 10;
-const size_t BIN_SIZES[] = {4, 8, 32, 64, 128, 256, 512, 1024, 2048, 4096};
+const size_t BIN_SIZES[] = {8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 static mem_node* bins[10];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -138,7 +127,6 @@ mem_node_merge(mem_node* left, mem_node* right)
 mem_node*
 mem_node_init(size_t pages)
 {
-    stats.pages_mapped += pages;
     size_t size = pages * PAGE_SIZE;
     mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
     n->size = size - sizeof(mem_node);
@@ -150,7 +138,6 @@ mem_node*
 split_node(mem_node* node, size_t size)
 {
     pthread_mutex_lock(&mutex);
-	binstatus();
 	size_t leftover_size = node->size - size;
 	size_t next_bin = 9;
 
@@ -161,7 +148,7 @@ split_node(mem_node* node, size_t size)
 		node = (mem_node*) (((void*) node) + size);
 		node->size = leftover_size;
 
-		while (next_bin >= 0) {
+		while (next_bin >= 0 && leftover_size > 0) {
 			size_t to_insert_size = BIN_SIZES[next_bin];
 
 			if (leftover_size < to_insert_size) {
@@ -189,7 +176,6 @@ mem_node*
 bins_list_pop(size_t size)
 {
 	size_t rounded_size = get_rounded_size(size);
-	//printf("POP SIZE %lu | ROUNDED: %lu\n", size, rounded_size);
 	int bin_number;
 	
 	for (int i = 0; i < NUM_BINS; i++) {
@@ -201,22 +187,58 @@ bins_list_pop(size_t size)
     return NULL;
 }
 
-// Inserts into the free list, maintaining sorted order
+void
+coalesce(int bin_number)
+{
+	return;
+	if (bins[bin_number] == NULL) {
+		return;
+	}
+
+	mem_node* cur = bins[bin_number]->next; // dont bother coalecing 1-element bins
+	mem_node* prev = bins[bin_number];
+
+	while (cur != NULL) {
+		size_t pointer_diff = ((void*) cur) - ((void*) prev);
+		printf("%lu\n", pointer_diff);
+		prev = cur;
+		cur = cur->next;
+	}
+}
+
+// Inserts into the correct bin, maintaining sorted order
 void
 bins_insert(mem_node* node)
 {
     pthread_mutex_lock(&mutex);
 	int bin_number = get_bin_number(node->size);
+	coalesce(bin_number);
+	mem_node* list = bins[bin_number];
 
-	node->next = bins[bin_number];
-	bins[bin_number] = node;
+    if (list == NULL || node < list) {
+		node->next = list;
+        bins[bin_number] = node;
+	} else {
+		mem_node* insertion_start = NULL;
+		mem_node* insertion_end = list;    
+
+		while (insertion_end != NULL && node > insertion_end) {
+			insertion_start = insertion_end;
+			insertion_end = insertion_end->next;
+		}
+
+		if (insertion_start != NULL) {
+			insertion_start->next = node;
+		}
+
+		node->next = insertion_end;
+	} 
     pthread_mutex_unlock(&mutex);
 }
 
 void*
 xmalloc(size_t size)
 {
-    stats.chunks_allocated += 1;
     size += sizeof(size_t);
 
     mem_node* to_alloc = NULL;
@@ -229,9 +251,15 @@ xmalloc(size_t size)
     } else {
         size = pages * PAGE_SIZE;
     }
+	printf("TO MALLOC: %lu\n", size);
+	binstatus();
 
     if (to_alloc == NULL) {
         to_alloc = mem_node_init(pages);
+
+		if (pages == 1) {
+			to_alloc = split_node(to_alloc, size);
+		}
     }
 
     void* item = ((void*) to_alloc) + sizeof(size_t);
@@ -243,18 +271,14 @@ xmalloc(size_t size)
 void
 xfree(void* item)
 {
-    stats.chunks_freed += 1;
-
     size_t size = get_size(item);
     item = item - sizeof(size_t);
 
     if (size >= PAGE_SIZE) {
         munmap(item, size);
-        stats.pages_unmapped += size / PAGE_SIZE;
     } else {
         mem_node* new_node = (mem_node*) (item);
         new_node->size = size;
-		//printf("FREE: %lu\n", size);
         bins_insert(new_node);
     }
 }
