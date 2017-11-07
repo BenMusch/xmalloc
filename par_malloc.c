@@ -22,6 +22,7 @@ const size_t PAGE_SIZE = 4096;
 const size_t NUM_BINS = 10;
 const size_t BIN_SIZES[] = {8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 static mem_node* bins[10];
+static size_t malloc_count = 0;
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -138,7 +139,7 @@ void
 bin_insert(mem_node* node, int bin_number)
 {
 	if (node == NULL || bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
-		//printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
+		printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
 	} else {
 		node->next = bins[bin_number];
 		bins[bin_number] = node;
@@ -151,7 +152,6 @@ bin_insert(mem_node* node, int bin_number)
 mem_node*
 split_node(mem_node* node, size_t size)
 {
-	//printf("splitting %p from %lu to %lu\n", node, node->size, size);
 	if (node->size - size < sizeof(mem_node)) {
 		node->size = size;
 		node->next = NULL;
@@ -161,13 +161,26 @@ split_node(mem_node* node, size_t size)
 	node2->size = node->size - size;
 	node->size = size;
 
-	//printf("split (%p size=%lu) and (%p size=%lu)\n", node, node->size, node2, node2->size);
-
 	node->next = NULL;
 	node2->next = NULL;
 
 	return node2;
 }
+
+// Fill the bins with a page of memory each at the beginning
+void
+fill_bins()
+{
+	for (int i=0; i < NUM_BINS; i++) {
+		mem_node* node = mem_node_init(1);
+		for (int j=0; j < PAGE_SIZE / BIN_SIZES[i]; j++) {
+			mem_node* tmp = split_node(node, BIN_SIZES[i]);
+			bin_insert(node, i);
+			node = tmp;
+		}
+	}
+}
+
 
 // Take size from node, then distribute the remainder in the bins
 // returns node
@@ -218,7 +231,8 @@ bins_list_pop(size_t size)
 	for (int i = 0; i < NUM_BINS; i++) {
 		if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
 			mem_node* node = bins[i];
-			node = distribute_node(bins[i], rounded_size);
+			bins[i] = node->next;
+			node = distribute_node(node, rounded_size);
 			return node;
 		}
 	}
@@ -230,6 +244,12 @@ bins_list_pop(size_t size)
 void*
 xmalloc(size_t size)
 {
+	malloc_count += 1;
+
+	if (malloc_count == 1) {
+		fill_bins();
+	}
+
     size += sizeof(size_t);
 
     mem_node* to_alloc;
@@ -263,6 +283,7 @@ xfree(void* item)
 		printf("FREE NULL??\n");
 		return;
 	}
+
     size_t size = get_size(item);
 	printf("FREE %p: %lu\n", item, size);
     item = item - sizeof(size_t);
