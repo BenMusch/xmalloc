@@ -30,7 +30,6 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  * UTILITY FUNCTIONS
  * =================
  */
-
 static
 size_t
 div_up(size_t xx, size_t yy)
@@ -134,7 +133,7 @@ mem_node_init(size_t pages)
     return n;
 }
 
-// Inserts into the correct bin
+// Inserts into the passed bin, if the size is correct
 void
 bin_insert(mem_node* node, int bin_number)
 {
@@ -173,7 +172,7 @@ split_node(mem_node* node, size_t size)
 
 			mem_node* to_insert = node;
 			to_insert->size = to_insert_size;
-			bin_insert(to_insert, bin_number);
+			bin_insert(to_insert, next_bin);
 			leftover_size -= to_insert_size;
 			
 			node = (mem_node*) (((void*) node) + to_insert_size);
@@ -242,7 +241,7 @@ xfree(void* item)
     } else {
         mem_node* new_node = (mem_node*) (item);
         new_node->size = size;
-        bin_insert(new_node, get_bin_number(new_node));
+        bin_insert(new_node, get_bin_number(new_node->size));
     }
 }
 
