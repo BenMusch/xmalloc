@@ -103,6 +103,8 @@ split_node(mem_node* node, size_t size)
 	size_t leftover_size = node->size - size;
 	size_t next_bin = 9;
 
+	//printf("NODE SIZE: %lu | REQUESTED SIZE: %lu | LEFTOVER SIZE: %lu\n", node->size, size, leftover_size);
+
 	mem_node* return_node = node;
 	return_node->size = size;
 
@@ -113,10 +115,15 @@ split_node(mem_node* node, size_t size)
 		while (next_bin >= 0) {
 			size_t to_insert_size = BIN_SIZES[next_bin];
 
+			//printf("CUR BIN: %lu | CUR LEFTOVER: %lu\n", to_insert_size, leftover_size);
+
 			if (leftover_size < to_insert_size) {
 				next_bin -= 1;
+				//printf("skipping\n");
 				continue;
 			}
+
+			//printf("inserting\n");
 
 			mem_node* to_insert = node;
 			to_insert->size = to_insert_size;
@@ -137,12 +144,13 @@ split_node(mem_node* node, size_t size)
 mem_node*
 bins_list_pop(size_t size)
 {
-	int rounded_size = get_rounded_size(size);
+	size_t rounded_size = get_rounded_size(size);
+	//printf("POP SIZE %lu | ROUNDED: %lu\n", size, rounded_size);
 	int bin_number;
 	
 	for (int i = 0; i < NUM_BINS; i++) {
 		if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
-			return split_node(bins[i], rounded_size);	
+			mem_node* node = split_node(bins[i], rounded_size);	
 		}
 	}
 	
@@ -209,7 +217,7 @@ void*
 xmalloc(size_t size)
 {
     stats.chunks_allocated += 1;
-    size += sizeof(size_t);
+    size = get_rounded_size(size + sizeof(size_t));
 
     mem_node* to_alloc = NULL;
     mem_node* new_node = NULL;
@@ -225,8 +233,6 @@ xmalloc(size_t size)
         to_alloc = mem_node_init(pages);
     }
 
-    int new_node_size = to_alloc->size - size;
-
     void* item = ((void*) to_alloc) + sizeof(size_t);
     set_size(item, size);
 
@@ -240,6 +246,7 @@ xfree(void* item)
 
     size_t size = get_size(item);
     item = item - sizeof(size_t);
+	//printf("FREEING %lu\n", size);
 
     if (size >= PAGE_SIZE) {
         munmap(item, size);
