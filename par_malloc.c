@@ -25,7 +25,7 @@ const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 
 const size_t NUM_BINS = 10;
-const size_t BIN_SIZES[] = {8, 32, 64, 96, 128, 256, 512, 1024, 2048, 4096};
+const size_t BIN_SIZES[] = {4, 8, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 static mem_node* bins[10];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -44,6 +44,23 @@ div_up(size_t xx, size_t yy)
     else {
         return zz + 1;
     }
+}
+
+long
+bins_list_length(int bin)
+{
+    long len = 0;
+
+	mem_node* cur = bins[bin];
+	while (cur != NULL) {
+		if (cur->size != BIN_SIZES[bin]) {
+			printf("\nERROR: %lu should be %lu\n", cur->size, BIN_SIZES[bin]);
+		}
+		len++;
+		cur = cur->next;
+	}
+
+    return len;
 }
 
 size_t
@@ -96,10 +113,20 @@ get_rounded_size(size_t size)
 	return -1;
 }
 
+void
+binstatus() {
+	printf("===========================================\n");
+	for (int i=0; i < NUM_BINS; i++) {
+		printf("%lu: %lu\n", BIN_SIZES[i], bins_list_length(i));
+	}
+	printf("===========================================\n");
+}
+
 mem_node*
 split_node(mem_node* node, size_t size)
 {
     pthread_mutex_lock(&mutex);
+	binstatus();
 	size_t leftover_size = node->size - size;
 	size_t next_bin = 9;
 
@@ -170,47 +197,11 @@ void
 bins_insert(mem_node* node)
 {
     pthread_mutex_lock(&mutex);
-	int bin_number = get_bin_number(get_rounded_size(node->size));
-	mem_node* list = bins[bin_number];
+	int bin_number = get_bin_number(node->size);
 
 	node->next = bins[bin_number];
 	bins[bin_number] = node;
     pthread_mutex_unlock(&mutex);
-}
-
-long
-bins_list_length()
-{
-    long len = 0;
-
-	for (int i = 0; i < NUM_BINS; i++) {
-		mem_node* cur = bins[i];
-		while (cur != NULL) {
-			len++;
-			cur = cur->next;
-		}
-	}
-
-    return len;
-}
-
-hm_stats*
-hgetstats()
-{
-    stats.free_length = bins_list_length();
-    return &stats;
-}
-
-void
-hprintstats()
-{
-    stats.free_length = bins_list_length();
-    fprintf(stderr, "\n== husky malloc stats ==\n");
-    fprintf(stderr, "Mapped:   %ld\n", stats.pages_mapped);
-    fprintf(stderr, "Unmapped: %ld\n", stats.pages_unmapped);
-    fprintf(stderr, "Allocs:   %ld\n", stats.chunks_allocated);
-    fprintf(stderr, "Frees:    %ld\n", stats.chunks_freed);
-    fprintf(stderr, "Freelen:  %ld\n", stats.free_length);
 }
 
 void*
@@ -247,7 +238,6 @@ xfree(void* item)
 
     size_t size = get_size(item);
     item = item - sizeof(size_t);
-	//printf("FREEING %lu\n", size);
 
     if (size >= PAGE_SIZE) {
         munmap(item, size);
@@ -255,6 +245,7 @@ xfree(void* item)
     } else {
         mem_node* new_node = (mem_node*) (item);
         new_node->size = size;
+		//printf("FREE: %lu\n", size);
         bins_insert(new_node);
     }
 }
