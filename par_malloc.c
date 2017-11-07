@@ -241,26 +241,24 @@ xmalloc(size_t size)
 {
     size += sizeof(size_t);
 
-    mem_node* to_alloc = NULL;
-    mem_node* new_node = NULL;
+    mem_node* to_alloc;
+    mem_node* new_node;
     size_t pages = div_up(size, PAGE_SIZE);
 
     if (pages == 1) {
 		size = get_rounded_size(size);
         to_alloc = bins_list_pop(size);
+
+		if (to_alloc == NULL)  {
+			to_alloc = mem_node_init(1);
+			to_alloc = split_node(to_alloc, size);
+		}
     } else {
         size = pages * PAGE_SIZE;
+        to_alloc = mem_node_init(pages);
     }
 	printf("TO MALLOC: %lu\n", size);
 	binstatus();
-
-    if (to_alloc == NULL) {
-        to_alloc = mem_node_init(pages);
-
-		if (pages == 1) {
-			to_alloc = split_node(to_alloc, size);
-		}
-    }
 
     void* item = ((void*) to_alloc) + sizeof(size_t);
     set_size(item, size);
