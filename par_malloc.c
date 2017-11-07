@@ -134,10 +134,25 @@ mem_node_init(size_t pages)
     return n;
 }
 
+// Inserts into the correct bin
+void
+bin_insert(mem_node* node, int bin_number)
+{
+    pthread_mutex_lock(&mutex);
+
+	if (bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
+		printf("ERROR: Invalid insert of %lu into bin %lu", node->size, BIN_SIZES[bin_number]);
+	} else {
+		node->next = bins[bin_number];
+		bins[bin_number] = node;
+	}
+
+    pthread_mutex_unlock(&mutex);
+}
+
 mem_node*
 split_node(mem_node* node, size_t size)
 {
-    pthread_mutex_lock(&mutex);
 	size_t leftover_size = node->size - size;
 	size_t next_bin = 9;
 
@@ -158,8 +173,7 @@ split_node(mem_node* node, size_t size)
 
 			mem_node* to_insert = node;
 			to_insert->size = to_insert_size;
-			to_insert->next = bins[next_bin];
-			bins[next_bin] = to_insert;
+			bin_insert(to_insert, bin_number);
 			leftover_size -= to_insert_size;
 			
 			node = (mem_node*) (((void*) node) + to_insert_size);
@@ -167,7 +181,6 @@ split_node(mem_node* node, size_t size)
 		}
 	}
 
-	pthread_mutex_unlock(&mutex);
 	return return_node;
 }
 
@@ -187,54 +200,6 @@ bins_list_pop(size_t size)
     return NULL;
 }
 
-void
-coalesce(int bin_number)
-{
-	return;
-	if (bins[bin_number] == NULL) {
-		return;
-	}
-
-	mem_node* cur = bins[bin_number]->next; // dont bother coalecing 1-element bins
-	mem_node* prev = bins[bin_number];
-
-	while (cur != NULL) {
-		size_t pointer_diff = ((void*) cur) - ((void*) prev);
-		printf("%lu\n", pointer_diff);
-		prev = cur;
-		cur = cur->next;
-	}
-}
-
-// Inserts into the correct bin, maintaining sorted order
-void
-bins_insert(mem_node* node)
-{
-    pthread_mutex_lock(&mutex);
-	int bin_number = get_bin_number(node->size);
-	coalesce(bin_number);
-	mem_node* list = bins[bin_number];
-
-    if (list == NULL || node < list) {
-		node->next = list;
-        bins[bin_number] = node;
-	} else {
-		mem_node* insertion_start = NULL;
-		mem_node* insertion_end = list;    
-
-		while (insertion_end != NULL && node > insertion_end) {
-			insertion_start = insertion_end;
-			insertion_end = insertion_end->next;
-		}
-
-		if (insertion_start != NULL) {
-			insertion_start->next = node;
-		}
-
-		node->next = insertion_end;
-	} 
-    pthread_mutex_unlock(&mutex);
-}
 
 void*
 xmalloc(size_t size)
@@ -277,7 +242,7 @@ xfree(void* item)
     } else {
         mem_node* new_node = (mem_node*) (item);
         new_node->size = size;
-        bins_insert(new_node);
+        bin_insert(new_node, get_bin_number(new_node));
     }
 }
 
