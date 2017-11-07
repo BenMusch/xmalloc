@@ -94,43 +94,13 @@ free_list_pop(size_t size)
 	return NULL;
 }
 
-void
-mem_node_merge(mem_node* left, mem_node* right)
-{
-	size_t size = left->size + right->size + sizeof(mem_node);
-	left->size = size;
-	left->next = right->next;
-}
-
 // Inserts into the free list, maintaining sorted order
 void
 free_list_insert(mem_node* node)
 {
 	pthread_mutex_lock(&mutex);
-
-	if (free_list == NULL || node < free_list) {
-		node->next = free_list;
-		free_list = node;
-		pthread_mutex_unlock(&mutex);
-		return;
-	}
-
-	mem_node* insertion_start = NULL;
-	mem_node* insertion_end = free_list;	
-
-	while (insertion_end != NULL && node > insertion_end) {
-		if (insertion_start && (insertion_end - insertion_start) == 1) {
-			mem_node_merge(insertion_start, insertion_end);
-			insertion_end = insertion_start->next;
-		} else {
-			insertion_end = insertion_end->next;
-		}
-	}
-
-	if (insertion_start != NULL) {
-		insertion_start->next = node;
-	}
-	node->next = insertion_end;
+	node->next = free_list;
+	free_list = node;
 	pthread_mutex_unlock(&mutex);
 }
 
