@@ -178,8 +178,9 @@ void*
 xrealloc(void* ptr, size_t size)
 {
     void* new = xmalloc(size);
+	size += sizeof(size_t);
 
-	memcpy(new, ptr, get_size(ptr));
+	memcpy(new, ptr, size);
     xfree(ptr);
 
     return new;
