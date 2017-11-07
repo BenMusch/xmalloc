@@ -129,7 +129,7 @@ mem_node_init(size_t pages)
 {
     size_t size = pages * PAGE_SIZE;
     mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-    n->size = size - sizeof(mem_node);
+    n->size = size;
     n->next = NULL;
     return n;
 }
