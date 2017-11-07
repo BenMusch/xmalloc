@@ -31,14 +31,11 @@ static
 size_t
 div_up(size_t xx, size_t yy)
 {
-    // This is useful to calculate # of pages
-    // for large allocations.
     size_t zz = xx / yy;
 
     if (zz * yy == xx) {
         return zz;
-    }
-    else {
+    } else {
         return zz + 1;
     }
 }
@@ -60,10 +57,11 @@ set_size(void* item, size_t size)
 mem_node*
 mem_node_init(size_t pages)
 {
+	printf("MAPPING A PAGE\n");
 	stats.pages_mapped += pages;
 	size_t size = pages * PAGE_SIZE;
 	mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	n->size = size - sizeof(mem_node);
+	n->size = size;
 	n->next = NULL;
 	return n;
 }
@@ -175,6 +173,7 @@ xmalloc(size_t size)
 {
     stats.chunks_allocated += 1;
     size += sizeof(size_t);
+	printf("MALLOC: %lu\n", size);
 
 	mem_node* to_alloc = NULL;
 	mem_node* new_node = NULL;
