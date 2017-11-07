@@ -217,13 +217,14 @@ void*
 xmalloc(size_t size)
 {
     stats.chunks_allocated += 1;
-    size = get_rounded_size(size + sizeof(size_t));
+    size += sizeof(size_t);
 
     mem_node* to_alloc = NULL;
     mem_node* new_node = NULL;
     size_t pages = div_up(size, PAGE_SIZE);
 
     if (pages == 1) {
+		size = get_rounded_size(size);
         to_alloc = bins_list_pop(size);
     } else {
         size = pages * PAGE_SIZE;
