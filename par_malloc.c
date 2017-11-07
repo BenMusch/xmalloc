@@ -140,7 +140,7 @@ bin_insert(mem_node* node, int bin_number)
     pthread_mutex_lock(&mutex);
 
 	if (bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
-		printf("ERROR: Invalid insert of %lu into bin %lu", node->size, BIN_SIZES[bin_number]);
+		printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
 	} else {
 		node->next = bins[bin_number];
 		bins[bin_number] = node;
@@ -192,7 +192,9 @@ bins_list_pop(size_t size)
 	
 	for (int i = 0; i < NUM_BINS; i++) {
 		if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
-			mem_node* node = split_node(bins[i], rounded_size);	
+			mem_node* node = bins[i];
+			node = split_node(bins[i], rounded_size);
+			return node;
 		}
 	}
 	
@@ -209,6 +211,8 @@ xmalloc(size_t size)
     mem_node* new_node;
     size_t pages = div_up(size, PAGE_SIZE);
 
+	printf("TO MALLOC: %lu\n", size);
+	binstatus();
     if (pages == 1) {
 		size = get_rounded_size(size);
         to_alloc = bins_list_pop(size);
@@ -221,8 +225,6 @@ xmalloc(size_t size)
         size = pages * PAGE_SIZE;
         to_alloc = mem_node_init(pages);
     }
-	printf("TO MALLOC: %lu\n", size);
-	binstatus();
 
     void* item = ((void*) to_alloc) + sizeof(size_t);
     set_size(item, size);
