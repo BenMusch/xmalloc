@@ -109,7 +109,8 @@ free_list_insert(mem_node* node)
 {
 	pthread_mutex_lock(&mutex);
 
-	if (free_list == NULL) {
+	if (free_list == NULL || node < free_list) {
+		node->next = free_list;
 		free_list = node;
 		pthread_mutex_unlock(&mutex);
 		return;

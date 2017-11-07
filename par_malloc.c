@@ -59,7 +59,6 @@ set_size(void* item, size_t size)
 mem_node*
 mem_node_init(size_t pages)
 {
-	printf("MAPPING A PAGE\n");
     stats.pages_mapped += pages;
     size_t size = pages * PAGE_SIZE;
     mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
@@ -195,7 +194,6 @@ xmalloc(size_t size)
     // I know this looks redundant, but for some reason the > 0
     // conditional prevents a segfault on one of my test machines
     if (new_node_size > 0 && new_node_size > sizeof(mem_node)) {
-		printf("WILL INSERT\n");
         new_node = ((void*) to_alloc) + size;
         new_node->size = (size_t) new_node_size;
         free_list_insert(new_node);
