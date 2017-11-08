@@ -23,7 +23,8 @@ typedef struct mem_node {
 } mem_node;
 
 const size_t PAGE_SIZE = 4096;
-const int free_freq = 100;
+const int free_freq = 1000;
+const long SIZE_CAP = 1024;
 static hm_stats stats; // This initializes the stats to 0.
 static mem_node* get_freed_things;
 __thread int frees = 0;
@@ -214,6 +215,20 @@ free_list_length()
 	return len;
 }
 
+long
+list_total_size(mem_node* alist)
+{
+    mem_node* cur = alist;
+    long size = 0;
+    
+    while (cur != NULL) {
+        size += cur->size;
+        cur = cur->next;
+    }
+    
+    return size;
+}
+
 hm_stats*
 hgetstats()
 {
@@ -327,7 +342,8 @@ xfree(void* item)
 		new_node->size = size;
 		free_list_insert(new_node);
 	}
-    if (frees >= free_freq) {
+    if (frees >= free_freq && list_total_size(free_list) > SIZE_CAP) {
+    
         add_all(get_freed_things, free_list);
     }
 }
