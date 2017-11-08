@@ -101,7 +101,7 @@ bins_pop(size_t size)
 	size_t rounded_size = get_rounded_size(size);
     for (int i = 0; i < NUM_BINS; i++) {
         if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
-            return bins_pop(i);
+            return bin_pop(i);
         }
     }
 	return NULL;
@@ -169,9 +169,11 @@ xmalloc(size_t size)
 			to_alloc = mem_node_init(1);
 		}
 		
-		// TODO: distribute this node properly
 		mem_node* remainder_node = split_node(to_alloc, size);	
-		bins_insert(remainder_node);
+
+		if (remainder_node) {
+			bins_insert(remainder_node);
+		}
 	} else {
 		size = pages * PAGE_SIZE;	
 		to_alloc = mem_node_init(pages);
