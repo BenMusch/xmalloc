@@ -23,9 +23,11 @@ typedef struct mem_node {
 } mem_node;
 
 const size_t PAGE_SIZE = 4096;
+const int free_freq = 100;
 static hm_stats stats; // This initializes the stats to 0.
-//static mem_node* free_list;
-//static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static mem_node* get_freed_things;
+__thread int frees = 0;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static __thread mem_node* free_list;
 
 static
@@ -66,6 +68,35 @@ mem_node_init(size_t pages)
 	return n;
 }
 
+mem_node*
+freed_things_list_pop(size_t size)
+{
+	pthread_mutex_lock(&mutex);
+	mem_node* prev = NULL;
+	mem_node* cur = get_freed_things;
+
+	while (cur != NULL) {
+		if (cur->size > size) {
+			if (prev != NULL) {
+				prev->next = cur->next;
+			} else {
+				// if prev is null, cur == free_list
+				get_freed_things = cur->next;
+			}
+
+			cur->next = NULL;
+			pthread_mutex_unlock(&mutex);
+			return cur;
+		}
+
+		prev = cur;
+		cur = cur->next;
+	}
+	pthread_mutex_unlock(&mutex);
+	return NULL;
+}
+
+
 // "pops" a mem_node with size bytes available off of the free_list
 mem_node*
 free_list_pop(size_t size)
@@ -92,7 +123,8 @@ free_list_pop(size_t size)
 		cur = cur->next;
 	}
 	//pthread_mutex_unlock(&mutex);
-	return NULL;
+	return freed_things_list_pop(size);
+	
 }
 
 void
@@ -135,6 +167,39 @@ free_list_insert(mem_node* node)
 	//pthread_mutex_unlock(&mutex);
 }
 
+// Inserts into the global free, maintaining sorted order
+void
+freed_things_list_insert( mem_node* node)
+{
+	//pthread_mutex_lock(&mutex);
+
+	if (get_freed_things == NULL || node < get_freed_things) {
+		node->next = get_freed_things;
+		get_freed_things = node;
+		//pthread_mutex_unlock(&mutex);
+		return;
+	}
+
+	mem_node* insertion_start = NULL;
+	mem_node* insertion_end = get_freed_things;	
+
+	while (insertion_end != NULL && node > insertion_end) {
+		if (insertion_start && (insertion_end - insertion_start) == 1) {
+			mem_node_merge(insertion_start, insertion_end);
+			insertion_end = insertion_start->next;
+		} else {
+			insertion_end = insertion_end->next;
+		}
+	}
+
+	if (insertion_start != NULL) {
+		insertion_start->next = node;
+	}
+	node->next = insertion_end;
+	//pthread_mutex_unlock(&mutex);
+}
+
+
 long
 free_list_length()
 {
@@ -167,6 +232,44 @@ hprintstats()
     fprintf(stderr, "Frees:    %ld\n", stats.chunks_freed);
     fprintf(stderr, "Freelen:  %ld\n", stats.free_length);
 }
+
+void
+full_coalesce(mem_node* alist)
+{
+    void* start;
+    void* stop;
+    mem_node* cur = alist;
+    while (cur != NULL && cur->next != NULL) {
+	stop = (void*)cur + cur->size;
+	start = cur->next;
+	if (stop == start) {
+	    cur->size += cur->next->size;
+	    cur->next = cur->next->next;
+	} 
+	cur = cur->next;
+		
+    }  
+
+}
+
+void
+add_all(mem_node* get_freed_things, mem_node* free_list) 
+{
+    pthread_mutex_lock(&mutex);
+    if (get_freed_things == NULL) {
+	    get_freed_things = free_list;
+    } else {
+    	mem_node* cur = free_list;
+    	while (cur != NULL) {
+    	    freed_things_list_insert(cur);
+    	    cur = cur->next;
+    	}
+    }
+    
+    full_coalesce(get_freed_things);
+    pthread_mutex_unlock(&mutex);
+}
+
 
 void*
 xmalloc(size_t size)
@@ -204,10 +307,14 @@ xmalloc(size_t size)
 	return item;
 }
 
+
+
 void
 xfree(void* item)
 {
     stats.chunks_freed += 1;
+    frees += 1;
+    
 
 	size_t size = get_size(item);
 	item = item - sizeof(size_t);
@@ -220,6 +327,9 @@ xfree(void* item)
 		new_node->size = size;
 		free_list_insert(new_node);
 	}
+    if (frees >= free_freq) {
+        add_all(get_freed_things, free_list);
+    }
 }
 
 void*
@@ -227,7 +337,7 @@ xrealloc(void* ptr, size_t size)
 {
     void* new = xmalloc(size);
 
-	memcpy(new, ptr, get_size(ptr));
+    memcpy(new, ptr, get_size(ptr));
     xfree(ptr);
 
     return new;
