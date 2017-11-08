@@ -31,14 +31,11 @@ static
 size_t
 div_up(size_t xx, size_t yy)
 {
-    // This is useful to calculate # of pages
-    // for large allocations.
     size_t zz = xx / yy;
 
     if (zz * yy == xx) {
         return zz;
-    }
-    else {
+    } else {
         return zz + 1;
     }
 }
@@ -63,7 +60,7 @@ mem_node_init(size_t pages)
 	stats.pages_mapped += pages;
 	size_t size = pages * PAGE_SIZE;
 	mem_node* n = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	n->size = size - sizeof(mem_node);
+	n->size = size;
 	n->next = NULL;
 	return n;
 }
@@ -111,7 +108,8 @@ free_list_insert(mem_node* node)
 {
 	pthread_mutex_lock(&mutex);
 
-	if (free_list == NULL) {
+	if (free_list == NULL || node < free_list) {
+		node->next = free_list;
 		free_list = node;
 		pthread_mutex_unlock(&mutex);
 		return;
@@ -125,7 +123,6 @@ free_list_insert(mem_node* node)
 			mem_node_merge(insertion_start, insertion_end);
 			insertion_end = insertion_start->next;
 		} else {
-			insertion_start = insertion_end;
 			insertion_end = insertion_end->next;
 		}
 	}
@@ -190,13 +187,13 @@ xmalloc(size_t size)
 		to_alloc = mem_node_init(pages);
 	}
 
-	int new_node_size = to_alloc->size - size;	
+	size_t new_node_size = to_alloc->size - size;	
 
 	// I know this looks redundant, but for some reason the > 0
 	// conditional prevents a segfault on one of my test machines
 	if (new_node_size > 0 && new_node_size > sizeof(mem_node)) {
 		new_node = ((void*) to_alloc) + size;
-		new_node->size = (size_t) new_node_size;
+		new_node->size = new_node_size;
 		free_list_insert(new_node);
 	}
 
