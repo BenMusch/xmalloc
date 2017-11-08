@@ -12,11 +12,10 @@ typedef struct mem_node {
 	struct mem_node* next;
 } mem_node;
 
-const size_t PAGE_SIZE = 4096;
-
-const size_t NUM_BINS = 1;
-const size_t BIN_SIZES[] = {4096};
-static mem_node* bins[1];
+static const size_t PAGE_SIZE = 4096;
+static const size_t NUM_BINS = 2;
+static const size_t BIN_SIZES[] = {2048, 4096};
+static mem_node* bins[2];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -108,6 +107,28 @@ bins_pop(size_t size)
 	return NULL;
 }
 
+// Splits a node into two nodes, with the first node beings the passed size
+// and the second node being the remainder
+//
+// Returns node2, since the caller of split_node aready has a pointer to node
+mem_node*
+split_node(mem_node* node, size_t size)
+{
+	size_t node2_size = node->size - size;	
+	node->next = NULL;
+	node->size = size;
+
+	if (node2_size > sizeof(size_t)) {
+		mem_node* node2 = (mem_node*) (((void*) node) + size);
+		node2->size = node2_size;
+		node2->next = NULL;
+
+		return node2;
+	}
+
+	return NULL;
+}
+
 // Inserts into the passed bin, if the size is correct
 void
 bin_insert(mem_node* node, int bin_number)
@@ -146,8 +167,11 @@ xmalloc(size_t size)
 
 		if (to_alloc == NULL) {
 			to_alloc = mem_node_init(1);
-			// TODO: With smaller bins, distribute this node
 		}
+		
+		// TODO: distribute this node properly
+		mem_node* remainder_node = split_node(to_alloc, size);	
+		bins_insert(remainder_node);
 	} else {
 		size = pages * PAGE_SIZE;	
 		to_alloc = mem_node_init(pages);
