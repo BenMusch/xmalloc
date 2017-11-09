@@ -182,7 +182,6 @@ xmalloc(size_t size)
 	mem_node* new_node = NULL;
 	size_t pages = div_up(size, PAGE_SIZE);
 
-	binstatus();
 	printf("MALLOC: %lu\n", size);
 
 	if (pages == 1) {
@@ -205,6 +204,7 @@ xmalloc(size_t size)
 
 	void* item = ((void*) to_alloc) + sizeof(size_t);
 	set_size(item, size);
+	binstatus();
 
 	return item;
 }
@@ -215,6 +215,8 @@ xfree(void* item)
 	size_t size = get_size(item);
 	item = item - sizeof(size_t);
 
+	printf("FREE: %lu\n", size);
+	
 	if (size >= PAGE_SIZE) {
 		munmap(item, size);
 	} else {
@@ -222,6 +224,7 @@ xfree(void* item)
 		new_node->size = size;
 		bins_insert(new_node);
 	}
+	binstatus();
 }
 
 void*
