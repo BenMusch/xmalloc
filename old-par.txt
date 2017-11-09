@@ -1,4 +1,4 @@
-#include <sys/mman.h>
+/*#include <sys/mman.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -17,6 +17,7 @@ typedef struct mem_node {
  * GLOBALS
  * =======
  */
+ /*
 const size_t PAGE_SIZE = 4096;
 
 const size_t NUM_BINS = 10;
@@ -24,13 +25,13 @@ const size_t BIN_SIZES[] = {8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 static mem_node* bins[10];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
+*/
 /**
  * =================
  * UTILITY FUNCTIONS
  * =================
  */
-
+/*
 static
 size_t
 div_up(size_t xx, size_t yy)
@@ -116,13 +117,13 @@ mem_node_merge(mem_node* left, mem_node* right)
     left->size = size;
     left->next = right->next;
 }
-
+*/
 /**
  * ================
  * ALLOCATION LOGIC
  * ================
  */
-
+/*
 // Initializes pages new memory of as a mem_node
 mem_node*
 mem_node_init(size_t pages)
@@ -290,4 +291,4 @@ xrealloc(void* ptr, size_t size)
     xfree(ptr);
 
     return new;
-}
+}*/
