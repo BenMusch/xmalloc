@@ -15,9 +15,13 @@ typedef struct mem_node {
 static const size_t PAGE_SIZE = 4096;
 static const size_t NUM_BINS = 8;
 static const size_t BIN_SIZES[] = {32, 64, 128, 256, 516, 1024, 2048, 4096};
+static pthread_mutex_t locks[] = {
+	PTHREAD_MUTEX_INITIALIZER,
+	PTHREAD_MUTEX_INITIALIZER,
+	PTHREAD_MUTEX_INITIALIZER,
+	PTHREAD_MUTEX_INITIALIZER
+};
 static mem_node* bins[8];
-
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 size_t
 bin_count(int bin_number)
@@ -107,12 +111,12 @@ mem_node_init(size_t pages)
 mem_node*
 bin_pop(int bin)
 {
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&locks[bin]);
 	mem_node* node = bins[bin];
 	if (node != NULL) {
 		bins[bin] = node->next;
 	}
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&locks[bin]);
 	return node;
 }
 
@@ -155,14 +159,14 @@ split_node(mem_node* node, size_t size)
 void
 bin_insert(mem_node* node, int bin_number)
 {
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&locks[bin_number]);
     if (bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
         //printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
     } else {
         node->next = bins[bin_number];
         bins[bin_number] = node;
     }
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&locks[bin_number]);
 }
 
 
