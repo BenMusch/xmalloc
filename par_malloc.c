@@ -19,6 +19,27 @@ static mem_node* bins[2];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+size_t
+bin_count(int bin_number)
+{
+	size_t count = 0;
+	mem_node* cur = bins[bin_number];
+	while (cur != NULL) {
+		count++;
+		cur = cur->next;
+	}
+	return count;
+}
+
+void
+binstatus() {
+    printf("===========================================\n");
+    for (int i=0; i < NUM_BINS; i++) {
+        printf("%lu: %lu\n", BIN_SIZES[i], bin_count(i));
+    }
+    printf("===========================================\n");
+}
+
 static
 size_t
 div_up(size_t xx, size_t yy)
@@ -160,6 +181,9 @@ xmalloc(size_t size)
 	mem_node* to_alloc = NULL;
 	mem_node* new_node = NULL;
 	size_t pages = div_up(size, PAGE_SIZE);
+
+	binstatus();
+	printf("MALLOC: %lu\n", size);
 
 	if (pages == 1) {
 		size = get_rounded_size(size);
