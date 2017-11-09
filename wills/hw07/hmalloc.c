@@ -8,6 +8,7 @@
 
 void free_node_init(void* page);
 
+
 /*
   typedef struct hm_stats {
   long pages_mapped;
@@ -31,7 +32,7 @@ typedef struct header {
 const size_t PAGE_SIZE = 4096;
 static hm_stats stats; // This initializes the stats to 0.
 node* fl = NULL;
-pthread_mutex_t* mutex = NULL;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 size_t
@@ -166,9 +167,7 @@ hmalloc(size_t size)
     stats.chunks_allocated += 1;
     size += sizeof(size_t);
 
-    if (mutex == NULL) {
-	pthread_mutex_init(mutex, 0);
-    }    
+      
 
     // TODO: Actually allocate memory with mmap and a free list.
      
