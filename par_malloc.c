@@ -79,6 +79,7 @@ get_bin_number(size_t size)
     return NUM_BINS - 1;
 }
 
+// Rounds the passed size to be a bin size
 size_t
 get_rounded_size(size_t size)
 {
@@ -173,6 +174,30 @@ bins_insert(mem_node* node)
 	bin_insert(node, bin_number);
 }
 
+// Given a node, "distributes" is between bins that it can fit into
+void
+distribute_node(mem_node* node)
+{
+	int bin_number = NUM_BINS - 1;
+	mem_node* tmp;
+	
+	while (bin_number >= 0) {
+		if (BIN_SIZES[bin_number] > node->size) {
+			bin_number--;
+			continue;
+		}
+	
+		tmp = split_node(node, BIN_SIZES[bin_number]);
+		bin_insert(node, bin_number);
+		
+		if (tmp == NULL) {
+			return;
+		}
+		
+		node = tmp;	
+	}
+}
+
 void*
 xmalloc(size_t size)
 {
@@ -194,8 +219,8 @@ xmalloc(size_t size)
 		
 		mem_node* remainder_node = split_node(to_alloc, size);	
 
-		if (remainder_node) {
-			bins_insert(remainder_node);
+		if (remainder_node != NULL) {
+			distribute_node(remainder_node);
 		}
 	} else {
 		size = pages * PAGE_SIZE;	
