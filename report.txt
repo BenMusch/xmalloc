@@ -7,7 +7,6 @@ List
 | 50000 | 60.57 | 1.87 | .95 |
 +-------+-------+------+-----+
 
-
 Ivec:
 +-------+-------+------+-----+
 | Size  |  HW7  | PAR  | SYS |
@@ -16,3 +15,29 @@ Ivec:
 |  5000 |  6.78 |  .09 | .07 |
 | 50000 | 664.7 | 1.43 | .44 |
 +-------+-------+------+-----+
+
+Strategy:
+
+Our strategy for a fast allocator was a combination of binning and
+arenas. For binning, we had 8 bins sized at the powers of 2 from
+32 to 4096. The allocator would round any size it's given to the
+closest bin, and then allocate at that size (unless the request was
+over a page.) When a request for 32 came in, if there was no 32-sized
+chunk, it would look for a larger chunk, then distribute that among
+the remaining bins by breaking it up. To improve lock contention,
+we had a lock for each bin, so that if two threads were taking from
+different bins, they could do so concurrently.
+
+For arenas, we just added a local and global copy of the bins. When
+allocating memory, it would always look through the local bins first,
+because it's faster to look through that. If nothing was there, it
+would check the global list, and then allocate a page locally if
+nothing was in either the global or local list.
+
+Results:
+
+We found that arenas offered the largest improvement on its own,
+though binning also significantly improved hw7 without adding arenas.
+It seems that binning significantly reduced the algorithmic costs of
+the allocation, but that using local memory was a far more important
+improvement.

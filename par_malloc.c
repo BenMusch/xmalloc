@@ -27,9 +27,7 @@ static pthread_mutex_t locks[] = {
 	PTHREAD_MUTEX_INITIALIZER
 };
 static __thread mem_node* bins[8];
-
 static mem_node* global_bins[8];
-static size_t malloc_count = 0;
 
 size_t
 bin_count(int bin_number)
@@ -226,7 +224,6 @@ distribute_node(mem_node* node)
 void
 fill_bins(mem_node** which)
 {
-	return;
 	for (int i=0; i < NUM_BINS; i++) {
 		mem_node* node = mem_node_init(1);
 		for (int i = 0; i < PAGE_SIZE / BIN_SIZES[i]; i++) {
@@ -240,17 +237,11 @@ fill_bins(mem_node** which)
 void*
 xmalloc(size_t size)
 {
-	//if (malloc_count == 0) {
-	//	malloc_count++;
-	//	fill_bins();
-	//}
     size += sizeof(size_t);
 
 	mem_node* to_alloc = NULL;
 	mem_node* new_node = NULL;
 	size_t pages = div_up(size, PAGE_SIZE);
-
-	//printf("MALLOC: %lu\n", size);
 
 	if (pages == 1) {
 		size = get_rounded_size(size);
@@ -286,16 +277,13 @@ xfree(void* item)
 	size_t size = get_size(item);
 	item = item - sizeof(size_t);
 
-	//printf("FREE: %lu\n", size);
-	
-	if (size >= PAGE_SIZE) {
+	if (size > PAGE_SIZE) {
 		munmap(item, size);
 	} else {
 		mem_node* new_node = (mem_node*) (item);
 		new_node->size = size;
 		bins_insert(bins, new_node);
 	}
-	//binstatus();
 }
 
 void*
