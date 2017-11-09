@@ -13,9 +13,9 @@ typedef struct mem_node {
 } mem_node;
 
 static const size_t PAGE_SIZE = 4096;
-static const size_t NUM_BINS = 9;
-static const size_t BIN_SIZES[] = {16, 32, 64, 128, 256, 516, 1024, 2048, 4096};
-static mem_node* bins[9];
+static const size_t NUM_BINS = 8;
+static const size_t BIN_SIZES[] = {32, 64, 128, 256, 516, 1024, 2048, 4096};
+static mem_node* bins[8];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
