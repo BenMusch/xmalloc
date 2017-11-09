@@ -13,9 +13,9 @@ typedef struct mem_node {
 } mem_node;
 
 static const size_t PAGE_SIZE = 4096;
-static const size_t NUM_BINS = 2;
-static const size_t BIN_SIZES[] = {2048, 4096};
-static mem_node* bins[2];
+static const size_t NUM_BINS = 9;
+static const size_t BIN_SIZES[] = {16, 32, 64, 128, 256, 516, 1024, 2048, 4096};
+static mem_node* bins[9];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -157,7 +157,7 @@ bin_insert(mem_node* node, int bin_number)
 {
     pthread_mutex_lock(&mutex);
     if (bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
-        printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
+        //printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
     } else {
         node->next = bins[bin_number];
         bins[bin_number] = node;
@@ -207,7 +207,7 @@ xmalloc(size_t size)
 	mem_node* new_node = NULL;
 	size_t pages = div_up(size, PAGE_SIZE);
 
-	printf("MALLOC: %lu\n", size);
+	//printf("MALLOC: %lu\n", size);
 
 	if (pages == 1) {
 		size = get_rounded_size(size);
@@ -229,7 +229,7 @@ xmalloc(size_t size)
 
 	void* item = ((void*) to_alloc) + sizeof(size_t);
 	set_size(item, size);
-	binstatus();
+	//binstatus();
 
 	return item;
 }
@@ -240,7 +240,7 @@ xfree(void* item)
 	size_t size = get_size(item);
 	item = item - sizeof(size_t);
 
-	printf("FREE: %lu\n", size);
+	//printf("FREE: %lu\n", size);
 	
 	if (size >= PAGE_SIZE) {
 		munmap(item, size);
@@ -249,7 +249,7 @@ xfree(void* item)
 		new_node->size = size;
 		bins_insert(new_node);
 	}
-	binstatus();
+	//binstatus();
 }
 
 void*
