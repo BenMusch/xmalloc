@@ -15,6 +15,7 @@ typedef struct mem_node {
 static const size_t PAGE_SIZE = 4096;
 static const size_t NUM_BINS = 8;
 static const size_t BIN_SIZES[] = {32, 64, 128, 256, 516, 1024, 2048, 4096};
+
 static pthread_mutex_t locks[] = {
 	PTHREAD_MUTEX_INITIALIZER,
 	PTHREAD_MUTEX_INITIALIZER,
@@ -25,7 +26,9 @@ static pthread_mutex_t locks[] = {
 	PTHREAD_MUTEX_INITIALIZER,
 	PTHREAD_MUTEX_INITIALIZER
 };
-static mem_node* bins[8];
+static __thread mem_node* bins[8];
+
+static mem_node* global_bins[8];
 static size_t malloc_count = 0;
 
 size_t
@@ -114,25 +117,32 @@ mem_node_init(size_t pages)
 
 // "pops" the first element off of the passed bin
 mem_node*
-bin_pop(int bin)
+bin_pop(mem_node** which, int bin)
 {
-    pthread_mutex_lock(&locks[bin]);
-	mem_node* node = bins[bin];
-	if (node != NULL) {
-		bins[bin] = node->next;
+	if (which == global_bins) {
+		pthread_mutex_lock(&locks[bin]);
 	}
-    pthread_mutex_unlock(&locks[bin]);
+
+	mem_node* node = which[bin];
+	if (node != NULL) {
+		which[bin] = node->next;
+	}
+
+	if (which == global_bins) {
+		pthread_mutex_unlock(&locks[bin]);
+	}
+
 	return node;
 }
 
 // "pops" a mem_node from the smallest bin that can fulfill size
 mem_node*
-bins_pop(size_t size)
+bins_pop(mem_node** which, size_t size)
 {
 	size_t rounded_size = get_rounded_size(size);
     for (int i = 0; i < NUM_BINS; i++) {
-        if (BIN_SIZES[i] >= rounded_size && bins[i] != NULL) {
-            return bin_pop(i);
+        if (BIN_SIZES[i] >= rounded_size && which[i] != NULL) {
+            return bin_pop(which, i);
         }
     }
 	return NULL;
@@ -162,25 +172,30 @@ split_node(mem_node* node, size_t size)
 
 // Inserts into the passed bin, if the size is correct
 void
-bin_insert(mem_node* node, int bin_number)
+bin_insert(mem_node** which, mem_node* node, int bin_number)
 {
-    pthread_mutex_lock(&locks[bin_number]);
+	if (which == global_bins) {
+		pthread_mutex_lock(&locks[bin_number]);
+	}
+
     if (bin_number >= NUM_BINS || node->size != BIN_SIZES[bin_number]) {
         //printf("ERROR: Invalid insert of %lu into bin %lu\n", node->size, BIN_SIZES[bin_number]);
     } else {
-        node->next = bins[bin_number];
-        bins[bin_number] = node;
+        node->next = which[bin_number];
+        which[bin_number] = node;
     }
-    pthread_mutex_unlock(&locks[bin_number]);
+	if (which == global_bins) {
+		pthread_mutex_unlock(&locks[bin_number]);
+	}
 }
 
 
 // Inserts into the free list, maintaining sorted order
 void
-bins_insert(mem_node* node)
+bins_insert(mem_node** which, mem_node* node)
 {
 	int bin_number = get_bin_number(node->size);
-	bin_insert(node, bin_number);
+	bin_insert(which, node, bin_number);
 }
 
 // Given a node, "distributes" is between bins that it can fit into
@@ -197,7 +212,7 @@ distribute_node(mem_node* node)
 		}
 	
 		tmp = split_node(node, BIN_SIZES[bin_number]);
-		bin_insert(node, bin_number);
+		bin_insert(bins, node, bin_number);
 		
 		if (tmp == NULL) {
 			return;
@@ -209,13 +224,14 @@ distribute_node(mem_node* node)
 
 // pre-fill each bin with a page of memory
 void
-fill_bins()
+fill_bins(mem_node** which)
 {
+	return;
 	for (int i=0; i < NUM_BINS; i++) {
 		mem_node* node = mem_node_init(1);
 		for (int i = 0; i < PAGE_SIZE / BIN_SIZES[i]; i++) {
 			mem_node* tmp = split_node(node, BIN_SIZES[i]);
-			bin_insert(node, i);
+			bin_insert(which, node, i);
 			node = tmp;
 		}
 	}
@@ -224,10 +240,10 @@ fill_bins()
 void*
 xmalloc(size_t size)
 {
-	if (malloc_count == 0) {
-		malloc_count++;
-		fill_bins();
-	}
+	//if (malloc_count == 0) {
+	//	malloc_count++;
+	//	fill_bins();
+	//}
     size += sizeof(size_t);
 
 	mem_node* to_alloc = NULL;
@@ -238,10 +254,13 @@ xmalloc(size_t size)
 
 	if (pages == 1) {
 		size = get_rounded_size(size);
-		to_alloc = bins_pop(size);
+		to_alloc = bins_pop(bins, size);
 
 		if (to_alloc == NULL) {
-			to_alloc = mem_node_init(1);
+			to_alloc = bins_pop(global_bins, size);
+			if (to_alloc == NULL) {
+				to_alloc = mem_node_init(1);
+			}
 		}
 		
 		mem_node* remainder_node = split_node(to_alloc, size);	
@@ -274,7 +293,7 @@ xfree(void* item)
 	} else {
 		mem_node* new_node = (mem_node*) (item);
 		new_node->size = size;
-		bins_insert(new_node);
+		bins_insert(bins, new_node);
 	}
 	//binstatus();
 }
