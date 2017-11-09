@@ -26,6 +26,7 @@ static pthread_mutex_t locks[] = {
 	PTHREAD_MUTEX_INITIALIZER
 };
 static mem_node* bins[8];
+static size_t malloc_count = 0;
 
 size_t
 bin_count(int bin_number)
@@ -206,9 +207,27 @@ distribute_node(mem_node* node)
 	}
 }
 
+// pre-fill each bin with a page of memory
+void
+fill_bins()
+{
+	for (int i=0; i < NUM_BINS; i++) {
+		mem_node* node = mem_node_init(1);
+		for (int i = 0; i < PAGE_SIZE / BIN_SIZES[i]; i++) {
+			mem_node* tmp = split_node(node, BIN_SIZES[i]);
+			bin_insert(node, i);
+			node = tmp;
+		}
+	}
+}
+
 void*
 xmalloc(size_t size)
 {
+	if (malloc_count == 0) {
+		malloc_count++;
+		fill_bins();
+	}
     size += sizeof(size_t);
 
 	mem_node* to_alloc = NULL;
